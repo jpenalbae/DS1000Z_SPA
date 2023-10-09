@@ -174,7 +174,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         for i in self.scopeRaw:
             if start and end:
-                chans[i].setData(self.scopeRaw[i][start:end])
+                self.scopeRaw[i] = self.scopeRaw[i][start:end]
+                chans[i].setData(self.scopeRaw[i])
             else:
                 chans[i].setData(self.scopeRaw[i])
             chans[i].button.setEnabled(True)

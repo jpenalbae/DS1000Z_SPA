@@ -87,13 +87,12 @@ class chanData():
             self.gw.removeItem(self.line)
             self.toggled = False
 
-
 class MainWindow(QtWidgets.QMainWindow):
     """
     The main window of the application.
 
     Attributes:
-        scopeRaw (dict): A dictionary containing the raw data from the oscilloscope.
+        scopeRaw (list): A list containing the raw data from the oscilloscope.
         graph (pyqtgraph.PlotWidget): The plot widget used to display the data.
         table (QtWidgets.QTableWidget): The table widget used to display the markers.
         range (pyqtgraph.LinearRegionItem): The linear region item used to select a range of data.
@@ -109,10 +108,15 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         scope = ds1000z.Scope(scopeAddr)
-        self.scopeRaw = scope.get_all_chans()
+        scopeData = scope.get_all_chans()
         del scope
 
-        self.update_graph()
+        self.scopeRaw.append(scopeData)
+        self.updateCaptureList(len(self.scopeRaw)-1)
+        self.update_graph(len(self.scopeRaw)-1)
+
+        if len(self.scopeRaw) == 1:
+                self.update_autoRange()
 
     def loadFile(self):
         """
@@ -124,9 +128,9 @@ class MainWindow(QtWidgets.QMainWindow):
                                                   "CSV Files (*.csv)")
 
         if fileName:
-            self.scopeRaw = {}
+            scopeData = {}
             for i in ["CHAN1", "CHAN2", "CHAN3", "CHAN4"]:
-                self.scopeRaw[i] = []
+                scopeData[i] = []
 
             with open(fileName, 'r') as f:
                 for line in f:
@@ -142,28 +146,34 @@ class MainWindow(QtWidgets.QMainWindow):
 
                         try:
                             if line[1]:
-                                self.scopeRaw["CHAN1"].append(int(float(line[1])))
+                                scopeData["CHAN1"].append(int(float(line[1])))
                             if line[3]:
-                                self.scopeRaw["CHAN2"].append(int(float(line[3])))
+                                scopeData["CHAN2"].append(int(float(line[3])))
                             if line[5]:
-                                self.scopeRaw["CHAN3"].append(int(float(line[5])))
+                                scopeData["CHAN3"].append(int(float(line[5])))
                             if line[7]:
-                                self.scopeRaw["CHAN4"].append(int(float(line[7])))
+                                scopeData["CHAN4"].append(int(float(line[7])))
                         except:
                             continue
 
             # delete empty channels
             for i in ["CHAN1", "CHAN2", "CHAN3", "CHAN4"]:
-                if len(self.scopeRaw[i]) < 1:
-                    del self.scopeRaw[i]
+                if len(scopeData[i]) < 1:
+                    del scopeData[i]
 
-            self.update_graph()
+            self.scopeRaw.append(scopeData)
+            self.updateCaptureList(len(self.scopeRaw)-1)
+            self.update_graph(len(self.scopeRaw)-1)
 
-    def update_graph(self, start=0, end=0):
+            if len(self.scopeRaw) == 1:
+                self.update_autoRange()
+
+    def update_graph(self, id, start=0, end=0):
         """
         Updates the graph with the data in scopeRaw.
 
         Args:
+            id (int): The index of the capture to display.
             start (int): The starting index of the data to display.
             end (int): The ending index of the data to display.
         """
@@ -172,20 +182,21 @@ class MainWindow(QtWidgets.QMainWindow):
             if chans[i].toggled:
                 chans[i].button.toggle()
 
-        for i in self.scopeRaw:
+        for i in self.scopeRaw[id]:
             if start and end:
-                self.scopeRaw[i] = self.scopeRaw[i][start:end]
-                chans[i].setData(self.scopeRaw[i])
+                self.scopeRaw[id][i] = self.scopeRaw[id][i][start:end]
+                chans[i].setData(self.scopeRaw[id][i])
             else:
-                chans[i].setData(self.scopeRaw[i])
+                chans[i].setData(self.scopeRaw[id][i])
             chans[i].button.setEnabled(True)
             chans[i].button.toggle()
             chans[i].toggle(True)
 
+        self.clearMarkers()
+
+    def update_autoRange(self):
         self.graph.getViewBox().enableAutoRange()
         self.graph.getViewBox().setMouseEnabled(y=False)
-
-        self.clearMarkers()
 
     def rangeToggle(self, checked):
         """
@@ -213,7 +224,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         region = self.range.getRegion()
-        self.update_graph(int(region[0]), int(region[1]))
+        id = self.captureList.currentIndex()
+        self.update_graph(id, int(region[0]), int(region[1]))
         self.rangeToggle(False)
         self.actionRange.setChecked(False)
 
@@ -375,6 +387,37 @@ class MainWindow(QtWidgets.QMainWindow):
                                             markers[i]["width"],
                                             markers[i]["note"]))
 
+    def updateCaptureList(self, id):
+
+        self.captureList.currentIndexChanged.disconnect(self.captureListChanged)
+
+        self.captureList.clear()
+        ids = list(map(str, range(1, len(self.scopeRaw)+1)))
+        self.captureList.addItems(ids)
+        self.captureList.setCurrentIndex(id)
+
+        self.captureList.currentIndexChanged.connect(self.captureListChanged)
+
+
+    def captureListChanged(self, id):
+        print("captureListChanged: %d" % id)
+        self.update_graph(id)
+
+    def deleteCapture(self):
+
+        if len(self.scopeRaw) > 0:
+            idx = self.captureList.currentIndex()
+            del self.scopeRaw[idx]
+
+            newid = max(idx-1, 0)
+            self.updateCaptureList(newid)
+
+            # If it was the last item clear the graph
+            if len(self.scopeRaw) == 0:
+                self.graph.clear()
+            else:
+                self.update_graph(newid)
+
 
     def __init__(self, *args, **kwargs):
         """
@@ -386,6 +429,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         super().__init__(*args, **kwargs)
         uic.loadUi(os.path.join(basedir, "main.ui"), self)
+        self.scopeRaw = []
 
         # Do not allow to remove the toolbar
         self.toolBar.toggleViewAction().setEnabled(False)
@@ -404,6 +448,8 @@ class MainWindow(QtWidgets.QMainWindow):
         chans["CHAN4"] = chanData(self.graph, self.buttonChan4, "#003870")
 
         self.graph.scene().sigMouseClicked.connect(self.mouse_clicked)
+        self.captureList.currentIndexChanged.connect(self.captureListChanged)
+        self.buttonDelete.clicked.connect(self.deleteCapture)
 
         # Add toolbar actions
         self.actionDownload.triggered.connect(self.download_scope_data)

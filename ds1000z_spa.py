@@ -253,7 +253,7 @@ class MainWindow(QtWidgets.QMainWindow):
             chans[i].button.toggle()
             chans[i].toggle(True)
 
-        self.clearMarkers()
+        # self.clearMarkers()
 
     def update_autoRange(self):
         self.graph.getViewBox().enableAutoRange()

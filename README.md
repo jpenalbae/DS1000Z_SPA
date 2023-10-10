@@ -6,7 +6,7 @@ loading from CSV files.
 It uses SCPI over the network to communicate wirh the scope. It has been tested
 with a DS1054Z but it might be portable to other scopes.
 
-![spa](https://github.com/jpenalbae/DS1000Z_SPA/assets/8380459/b5a18bc7-d459-42cd-846d-4e3ba7530d8f)
+![spa](https://github.com/jpenalbae/DS1000Z_SPA/assets/8380459/7f90a88a-cc7a-4911-9baf-d8daef6ee842)
 
 
 ## Features

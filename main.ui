@@ -368,7 +368,7 @@
    </property>
    <property name="icon">
     <iconset>
-     <normaloff>icons/play.svg</normaloff>icons/play.svg</iconset>
+     <normaloff>icons/play.png</normaloff>icons/play.png</iconset>
    </property>
    <property name="text">
     <string>Trigger Single</string>
@@ -380,7 +380,7 @@
    </property>
    <property name="icon">
     <iconset>
-     <normaloff>icons/repeat.svg</normaloff>icons/repeat.svg</iconset>
+     <normaloff>icons/repeat.png</normaloff>icons/repeat.png</iconset>
    </property>
    <property name="text">
     <string>Trigger Loop</string>

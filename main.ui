@@ -260,6 +260,9 @@
    <addaction name="actionOpen"/>
    <addaction name="actionDownload"/>
    <addaction name="separator"/>
+   <addaction name="actionSingle"/>
+   <addaction name="actionTriggerLoop"/>
+   <addaction name="separator"/>
    <addaction name="actionRange"/>
    <addaction name="actionCut"/>
    <addaction name="separator"/>
@@ -357,6 +360,30 @@
    </property>
    <property name="text">
     <string>Export Markers</string>
+   </property>
+  </action>
+  <action name="actionSingle">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>icons/play.svg</normaloff>icons/play.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Trigger Single</string>
+   </property>
+  </action>
+  <action name="actionTriggerLoop">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>icons/repeat.svg</normaloff>icons/repeat.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Trigger Loop</string>
    </property>
   </action>
  </widget>

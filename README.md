@@ -19,6 +19,9 @@ with a DS1054Z but it might be portable to other scopes.
 - Load saved data from CSV files
 - Enable and disable scope channels
 - Support to store multiple captures and change between them
+- Download data from a stopped scope
+- Download data using single trigger mode from a scope
+- Download data using loop/normal trigger mode from a scope
 
 ## Usage
 

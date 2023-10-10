@@ -2,7 +2,9 @@
 
 import os
 import sys
+import time
 import ds1000z
+from threading import Thread
 from PyQt6 import QtCore, QtWidgets, uic
 from PyQt6.QtWidgets import QPushButton, QFileDialog
 import pyqtgraph as pg
@@ -99,6 +101,15 @@ class MainWindow(QtWidgets.QMainWindow):
         markPen (pyqtgraph.mkPen): The pen used to draw the markers.
     """
 
+    def add_scope_capture(self, scopeData):
+        self.scopeRaw.append(scopeData)
+        self.updateCaptureList(len(self.scopeRaw)-1)
+        self.update_graph(len(self.scopeRaw)-1)
+
+        if len(self.scopeRaw) == 1:
+            self.update_autoRange()
+
+
     def download_scope_data(self):
         """
         Downloads the scope data from the oscilloscope and updates the graph.
@@ -111,12 +122,7 @@ class MainWindow(QtWidgets.QMainWindow):
         scopeData = scope.get_all_chans()
         del scope
 
-        self.scopeRaw.append(scopeData)
-        self.updateCaptureList(len(self.scopeRaw)-1)
-        self.update_graph(len(self.scopeRaw)-1)
-
-        if len(self.scopeRaw) == 1:
-                self.update_autoRange()
+        self.add_scope_capture(scopeData)
 
     def loadFile(self):
         """
@@ -161,12 +167,67 @@ class MainWindow(QtWidgets.QMainWindow):
                 if len(scopeData[i]) < 1:
                     del scopeData[i]
 
-            self.scopeRaw.append(scopeData)
-            self.updateCaptureList(len(self.scopeRaw)-1)
-            self.update_graph(len(self.scopeRaw)-1)
+            self.add_scope_capture(scopeData)
 
-            if len(self.scopeRaw) == 1:
-                self.update_autoRange()
+
+    def triggerSingle(self, checked):
+        if checked:
+            self.actionTriggerLoop.setEnabled(False)
+            self.thread = Thread(target=self.thread_single)
+            self.thread.daemon = True
+            self.stopThread = False
+            self.thread.start()
+        else:
+            self.stopThread = True
+            self.actionTriggerLoop.setEnabled(True)
+
+
+    def triggerLoop(self, checked):
+        if checked:
+            self.actionSingle.setEnabled(False)
+            self.thread = Thread(target=self.thread_loop)
+            self.thread.daemon = True
+            self.stopThread = False
+            self.thread.start()
+        else:
+            self.stopThread = True
+            self.actionSingle.setEnabled(True)
+
+
+    def thread_single(self):
+        scope = ds1000z.Scope(scopeAddr)
+        scope.cmd(":SING")
+
+        while scope.cmd_with_reply(":TRIG:STAT?") != "STOP":
+            if self.stopThread:
+                return
+
+        scopeData = scope.get_all_chans()
+        del scope
+
+        self.add_scope_capture(scopeData)
+
+        # uncheck buttons
+        self.actionSingle.setChecked(False)
+        self.actionTriggerLoop.setEnabled(True)
+
+    def thread_loop(self):
+        scope = ds1000z.Scope(scopeAddr)
+
+        while True:
+            scope.cmd(":SING")
+
+            while scope.cmd_with_reply(":TRIG:STAT?") != "STOP":
+                if self.stopThread:
+                    del scope
+                    return
+
+            scopeData = scope.get_all_chans()
+            self.add_scope_capture(scopeData)
+
+        del scope
+
+
 
     def update_graph(self, id, start=0, end=0):
         """
@@ -430,6 +491,8 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__(*args, **kwargs)
         uic.loadUi(os.path.join(basedir, "main.ui"), self)
         self.scopeRaw = []
+        self.thread = None
+        self.stopThread = False
 
         # Do not allow to remove the toolbar
         self.toolBar.toggleViewAction().setEnabled(False)
@@ -454,6 +517,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Add toolbar actions
         self.actionDownload.triggered.connect(self.download_scope_data)
         self.actionRange.triggered.connect(self.rangeToggle)
+        self.actionSingle.triggered.connect(self.triggerSingle)
+        self.actionTriggerLoop.triggered.connect(self.triggerLoop)
         self.actionCut.triggered.connect(self.cutRange)
         self.actionOpen.triggered.connect(self.loadFile)
         self.actionClearMarkers.triggered.connect(self.clearMarkers)
@@ -476,3 +541,4 @@ app = QtWidgets.QApplication(sys.argv)
 window = MainWindow()
 window.show()
 app.exec()
+sys.exit()

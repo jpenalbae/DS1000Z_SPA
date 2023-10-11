@@ -1,8 +1,6 @@
 import socket
 import select
 
-import socket
-import select
 
 class Scope:
     """

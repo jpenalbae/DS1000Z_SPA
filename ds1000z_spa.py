@@ -102,9 +102,17 @@ class MainWindow(QtWidgets.QMainWindow):
     """
 
     def add_scope_capture(self, scopeData):
+        """
+        Adds a new capture to the scopeRaw attribute and updates the graph.
+
+        Parameters:
+        -----------
+        scopeData : (dict): A dictionary containing the scope data.
+        """
         self.scopeRaw.append(scopeData)
         self.updateCaptureList(len(self.scopeRaw)-1)
         self.update_graph(len(self.scopeRaw)-1)
+        self.update_markers()
 
         if len(self.scopeRaw) == 1:
             self.update_autoRange()
@@ -171,6 +179,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def triggerSingle(self, checked):
+        """
+        Triggers a single capture from the oscilloscope.
+
+        Parameters:
+        -----------
+        checked : (bool): Whether the action is checked or not.
+        """
         if checked:
             self.actionTriggerLoop.setEnabled(False)
             self.thread = Thread(target=self.thread_single)
@@ -183,6 +198,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def triggerLoop(self, checked):
+        """
+        Triggers a continuous loop of captures from the oscilloscope.
+
+        Parameters:
+        -----------
+        checked : (bool): Whether the action is checked or not.
+        """
         if checked:
             self.actionSingle.setEnabled(False)
             self.thread = Thread(target=self.thread_loop)
@@ -195,6 +217,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def thread_single(self):
+        """
+        A thread function to trigger a single capture from the oscilloscope.
+        """
         scope = ds1000z.Scope(scopeAddr)
         scope.cmd(":SING")
 
@@ -212,6 +237,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.actionTriggerLoop.setEnabled(True)
 
     def thread_loop(self):
+        """
+        A thread function to trigger a continuous loop of captures from the oscilloscope.
+        """
         scope = ds1000z.Scope(scopeAddr)
 
         while True:
@@ -253,9 +281,13 @@ class MainWindow(QtWidgets.QMainWindow):
             chans[i].button.toggle()
             chans[i].toggle(True)
 
+        self.captureNr = id
         # self.clearMarkers()
 
     def update_autoRange(self):
+        """
+        Updates the graph to use auto range.
+        """
         self.graph.getViewBox().enableAutoRange()
         self.graph.getViewBox().setMouseEnabled(y=False)
 
@@ -374,6 +406,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
         event.accept()
 
+    def mouse_pos(self, pos):
+        vb = self.graph.getViewBox()
+        mousePoint = vb.mapSceneToView(pos)
+        x = round(mousePoint.x())
+        y = round(mousePoint.y())
+        self.labelCoords.setText("X:{}  Y:{}".format(x, y))
+
+
+
     def cellChanged(self, x, y):
         """
         Handles changes to the markers table.
@@ -382,7 +423,7 @@ class MainWindow(QtWidgets.QMainWindow):
             x (int): The row index of the changed cell.
             y (int): The column index of the changed cell.
         """
-        if y == 1:
+        if y == 2:
             markers[x]["note"] = self.table.item(x, y).text()
 
     def update_markers(self):
@@ -400,13 +441,31 @@ class MainWindow(QtWidgets.QMainWindow):
                 markers[i]["width"] = markers[i+1]["pos"] - markers[i]["pos"]
 
             markers[i]["label"].setText(str(i+1))
+            markers[i]["value"] = 0
 
         # Update the table
         self.table.clearContents()
         self.table.setRowCount(len(markers))
         for i in range(len(markers)):
-            self.table.setItem(i, 0, QtWidgets.QTableWidgetItem(str(markers[i]["width"])))
-            self.table.setItem(i, 1, QtWidgets.QTableWidgetItem(markers[i]["note"]))
+
+            item = QtWidgets.QTableWidgetItem(str(markers[i]["width"]))
+            flags = item.flags() ^ QtCore.Qt.ItemFlag.ItemIsEditable
+            item.setFlags(flags)
+            self.table.setItem(i, 0, item)
+
+            iitem = QtWidgets.QTableWidgetItem(markers[i]["note"])
+            self.table.setItem(i, 2, item)
+
+            cnr = self.captureNr
+            if len(self.scopeRaw) > cnr:
+                if "CHAN1" in self.scopeRaw[cnr]:
+                    pos = markers[i]["pos"]
+                    value = self.scopeRaw[cnr]["CHAN1"][pos]
+                    markers[i]["value"] = value
+                    item = QtWidgets.QTableWidgetItem(str(value))
+                    flags = item.flags() ^ QtCore.Qt.ItemFlag.ItemIsEditable
+                    item.setFlags(flags)
+                    self.table.setItem(i, 1, item)
 
     def cellClicked(self, x, y):
         """
@@ -442,10 +501,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if fileName:
             with open(fileName, 'w') as f:
-                f.write("pos,width,note\n")
+                f.write("pos,width,value,note\n")
                 for i in range(len(markers)):
                     f.write("%d,%d,%s\n" % (markers[i]["pos"],
                                             markers[i]["width"],
+                                            markers[i]["value"],
                                             markers[i]["note"]))
 
     def updateCaptureList(self, id):
@@ -463,6 +523,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def captureListChanged(self, id):
         print("captureListChanged: %d" % id)
         self.update_graph(id)
+        self.update_markers()
 
     def deleteCapture(self):
 
@@ -478,6 +539,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.graph.clear()
             else:
                 self.update_graph(newid)
+                self.update_markers()
 
 
     def __init__(self, *args, **kwargs):
@@ -493,6 +555,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.scopeRaw = []
         self.thread = None
         self.stopThread = False
+        self.captureNr = 0
 
         # Do not allow to remove the toolbar
         self.toolBar.toggleViewAction().setEnabled(False)
@@ -510,7 +573,14 @@ class MainWindow(QtWidgets.QMainWindow):
         chans["CHAN3"] = chanData(self.graph, self.buttonChan3, "#f800f8")
         chans["CHAN4"] = chanData(self.graph, self.buttonChan4, "#003870")
 
+        # Graph mouse signals
         self.graph.scene().sigMouseClicked.connect(self.mouse_clicked)
+        self.graph.scene().sigMouseMoved.connect(self.mouse_pos)
+
+        # Set base coords for graph
+        self.labelCoords.setText("X:0  Y:0")
+
+        # Captures reslates signals
         self.captureList.currentIndexChanged.connect(self.captureListChanged)
         self.buttonDelete.clicked.connect(self.deleteCapture)
 
